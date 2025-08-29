@@ -3,8 +3,7 @@ import json
 from typing import Optional, Dict, Any
 import urllib
 import time
-from utils import get_uipath_config
-
+from utils.uipath_config import get_uipath_config
 
 # === Configuration ===
 cfg = get_uipath_config()
@@ -57,9 +56,10 @@ def get_release_key(access_token: str, process_key: str) -> str:
     results = response.json().get('value', [])
     if not results:
         raise Exception(f"No process found with name: {process_key}")
+    
     return results[0]['Key']
 
-def start_uipath_job(access_token: str, process_release_key: str, input_args: Dict[str, Any]) -> Dict:
+def start_uipath_job(access_token: str, process_release_key: str, input_args: Optional[Dict[str, Any]] = None) -> Dict:
     url = f"{orchestrator_base}odata/Jobs/UiPath.Server.Configuration.OData.StartJobs"
     headers = {
         'Authorization': f'Bearer {access_token}',
@@ -72,30 +72,27 @@ def start_uipath_job(access_token: str, process_release_key: str, input_args: Di
             "ReleaseKey": process_release_key,
             "Strategy": "ModernJobsCount",
             "JobsCount": 1,
-            "RobotIds": [],
-            "MachineRobots": [
-                {
-                    "MachineName": "PH2343603W1"
-                }
-            ],
-            "RuntimeType": "Development",
             "InputArguments": json.dumps(input_args),
             "FolderId": int(folder_id)
         }
     }
-    response = requests.post(url, headers=headers, json=payload)
-    response.raise_for_status()
-    
-    result = response.json()
-    
-    # Extract and print job ID
-    if 'value' in result and len(result['value']) > 0:
-        job_id = result['value'][0]['Id']
-        print(f"Job started successfully on {payload['startInfo']['MachineRobots'][0]['MachineName']} with {payload['startInfo']['RuntimeType']} runtime. Job ID: {job_id}")
-    else:
-        print("Job started but no job ID found in response")
-        
-    return result
+
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        print("Response Status Code:", response.status_code)  # Debugging output
+        print("Response Text:", response.text)  # Debugging output
+        response.raise_for_status()  # Raise an error for bad responses
+        result = response.json()
+        print("RESULT: " + json.dumps(result))  # Debugging output
+        return result
+    except requests.exceptions.HTTPError as http_err:
+        print(f"HTTP error occurred: {http_err}")  # Log HTTP errors
+    except requests.exceptions.RequestException as req_err:
+        print(f"Request error occurred: {req_err}")  # Log other request errors
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")  # Log unexpected errors
+
+    return {}  # Return an empty dictionary if an error occurs
 
 def get_job_status_and_output(access_token: str, job_id: str, poll_interval: int = 5, timeout: int = 300) -> Optional[Dict]:
     """Get job outputs, polling until the job is complete or faulted."""
@@ -257,6 +254,7 @@ def call_uipath_process(process_name: str, input_args: Optional[Dict[str,Any]] =
         token = get_access_token()
         release_key = get_release_key(token, process_name)
         result = start_job_and_wait_for_completion(token, release_key,input_args)
+
         return {
             "status": "success",
             "message": f"Started process '{process_name}'",

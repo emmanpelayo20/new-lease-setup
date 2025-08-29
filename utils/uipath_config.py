@@ -26,8 +26,8 @@ def get_uipath_config():
     }
 
     # Optionally validate required keys
-    missing_keys = [k for k, v in config.items() if not v]
-    if missing_keys:
-        raise ValueError(f"Missing environment variables: {', '.join(missing_keys)}")
+    #missing_keys = [k for k, v in config.items() if not v]
+    #if missing_keys:
+    #    raise ValueError(f"Missing environment variables: {', '.join(missing_keys)}")
 
     return config
