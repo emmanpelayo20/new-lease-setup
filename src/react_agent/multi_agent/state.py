@@ -4,14 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Sequence
+from typing_extensions import Annotated, TypedDict
 
-from langchain_core.messages import AnyMessage, RemoveMessage, HumanMessage
+from langchain_core.messages import AnyMessage, HumanMessage, BaseMessage
 from langgraph.graph import add_messages
-from langgraph.managed import IsLastStep
-from typing_extensions import Annotated
+from langgraph.managed import IsLastStep, RemainingSteps
 
 import copy
-
 
 @dataclass
 class InputState:
@@ -19,7 +18,6 @@ class InputState:
 
     This class is used to define the initial state and structure of incoming data.
     """
-
     messages: Annotated[Sequence[AnyMessage], add_messages] = field(
         default_factory=list
     )
@@ -39,7 +37,6 @@ class InputState:
     updating by ID to maintain an "append-only" state unless a message with the same ID is provided.
     """
 
-
 @dataclass
 class State(InputState):
     """Represents the complete state of the agent, extending InputState with additional attributes.
@@ -55,11 +52,9 @@ class State(InputState):
     It is set to 'True' when the step count reaches recursion_limit - 1.
     """
 
-    # Additional attributes can be added here as needed.
-    # Common examples include:
-    # retrieved_documents: List[Document] = field(default_factory=list)
-    # extracted_entities: Dict[str, Any] = field(default_factory=dict)
-    # api_connections: Dict[str, Any] = field(default_factory=dict)
+    #retrieved_documents: list = field(default_factory=list)
+    #remaining_steps: RemainingSteps = field(default=0)
+
 
 #remove from message list the value of the given key
 def remove_messages_in_state(state_messages, key: str, value: str):
@@ -69,7 +64,7 @@ def remove_messages_in_state(state_messages, key: str, value: str):
 
     for message in updated_state_messages:
         if(isinstance(message,HumanMessage)):
-            message.content = [item for item in message.content if item[key] != value]
+            message.content = [item for item in message.content if (not isinstance(item, str) and item[key] != value)]
             #print(message.content)
 
     return updated_state_messages
@@ -80,12 +75,10 @@ def get_file_binary_list(state: State, key: str, value: str) -> list:
     file_binary_list = []
 
     for message in state.messages:
-        if(isinstance(message,HumanMessage)):
+        if(isinstance(message,HumanMessage)): #if human message
             for content in message.content:
-                if(content["type"] == "file"):
-                    file_binary_list.append([content["data"],content["metadata"]["filename"],content["mime_type"]]) #this is the file binary data
-
-    print("file_binary")
-    print(len(file_binary_list))
+                if(not isinstance(content,str)): #if not string
+                    if(content["type"] == "file"):
+                        file_binary_list.append([content["data"],content["metadata"]["filename"],content["mime_type"]]) #this is the file binary data
 
     return file_binary_list

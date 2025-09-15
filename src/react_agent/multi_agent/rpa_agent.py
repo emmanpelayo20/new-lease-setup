@@ -11,11 +11,10 @@ from langgraph.graph import StateGraph
 from langgraph.prebuilt import ToolNode
 from langgraph.runtime import Runtime
 
-from react_agent.context import Context
-from react_agent.state import InputState, State
-from react_agent.multi_agent.rpa_agent_tools import TOOLS
-from react_agent.utils import load_chat_model
-# Define the function that calls the model
+from react_agent.multi_agent.context import Context
+from react_agent.multi_agent.state import InputState, State, remove_messages_in_state
+from react_agent.multi_agent.tools import RPA_AGENT_TOOLS
+from react_agent.multi_agent.utils import load_chat_model
 
 
 async def call_model(
@@ -33,22 +32,26 @@ async def call_model(
         dict: A dictionary containing the model's response message.
     """
 
+    print("rpa_agent: call_model")
+
     # Initialize the model with tool binding. Change the model or add more tools here.
 
-    model = load_chat_model(runtime.context.worker_agents_model).bind_tools(TOOLS)
+    model = load_chat_model(runtime.context.worker_agents_model).bind_tools(RPA_AGENT_TOOLS)
 
     # Format the system prompt. Customize this to change the agent's behavior.
-    system_message = runtime.context.system_prompt.format(
+    system_message = runtime.context.rpa_agent_system_prompt.format(
         system_time=datetime.now(tz=UTC).isoformat()
     )
 
-    # Get the model's response
+    #remove type = file to be passed to llm call
+    updated_state_messages = remove_messages_in_state(state.messages, "type", "file")
+
     response = cast(
-        AIMessage,
-        await model.ainvoke(
-            [{"role": "system", "content": system_message}, *state.messages]
-        ),
-    )
+         AIMessage,
+         await model.ainvoke(
+             [{"role": "system", "content": system_message}, *updated_state_messages]
+         ),
+     )
 
     # Handle the case when it's the last step and the model still wants to use a tool
     if state.is_last_step and response.tool_calls:
@@ -71,7 +74,7 @@ def rpa_agent():
 
     # Define the two nodes we will cycle between
     builder.add_node(call_model)
-    builder.add_node("tools", ToolNode(TOOLS))
+    builder.add_node("tools", ToolNode(RPA_AGENT_TOOLS))
 
     # Set the entrypoint as `call_model`
     # This means that this node is the first one called
@@ -100,7 +103,6 @@ def rpa_agent():
         # Otherwise we execute the requested actions
         return "tools"
 
-
     # Add a conditional edge to determine the next step after `call_model`
     builder.add_conditional_edges(
         "call_model",
@@ -114,5 +116,5 @@ def rpa_agent():
     builder.add_edge("tools", "call_model")
 
     # Compile the builder into an executable graph
-    graph = builder.compile(name="Rpa_Agent")
+    graph = builder.compile(name="rpa_agent")
     return graph
