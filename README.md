@@ -23,10 +23,10 @@ By default, it's set up with a basic set of tools, but can be easily extended wi
 2. Create .env file
 
 3. To install dependencies from pyproject.toml
-pip install -e .
+  "pip install -e ."
 
 4. To run langgraph project
-langgraph dev --allow-blocking
+  "langgraph dev --allow-blocking"
 
 Note:
 If you run into a "ModuleNotFoundError" or "ImportError", even after installing the local package (pip install -e .), 
@@ -40,7 +40,6 @@ Note:
 Langgraph will start on the graph declared in the langgraph.json
 
 5. Check on langgraph API documentation on http://localhost:2024/docs
-
 
 6. Change langgraph.json based on need:
 For single agent with tools:
