@@ -23,6 +23,8 @@ class InputState:
     )
 
     documents: list = field(default_factory=list)
+    requestid: str = field(default="")
+
     """
     Messages tracking the primary execution state of the agent.
 

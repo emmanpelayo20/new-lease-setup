@@ -13,7 +13,7 @@ from langgraph.runtime import Runtime
 
 from react_agent.multi_agent_overhaul.context import Context
 from react_agent.multi_agent_overhaul.state import InputState, State
-from react_agent.multi_agent_overhaul.tools import RPA_AGENT_TOOLS
+from react_agent.multi_agent_overhaul.tools import RPA_AGENT_TOOLS, update_workflow_status
 from react_agent.multi_agent_overhaul.utils import load_chat_model
 
 
@@ -64,6 +64,18 @@ async def call_model(
     # Return the model's response as a list to be added to existing messages
     return {"messages": [response]}
 
+def post_model_process(state: State):
+    
+    request_id = state.requestid
+    step_id = "10" #step number of lease activation
+
+    print("Updating request Id:" + request_id)
+    #Update Workflow status
+    response = update_workflow_status(request_id=request_id,step_id=step_id,status="completed")
+
+    print(response)
+
+
 def rpa_agent():
 
     # Define a new graph
@@ -72,13 +84,14 @@ def rpa_agent():
     # Define the two nodes we will cycle between
     builder.add_node(call_model)
     builder.add_node("tools", ToolNode(RPA_AGENT_TOOLS))
+    builder.add_node(post_model_process)
 
     # Set the entrypoint as `call_model`
     # This means that this node is the first one called
     builder.add_edge("__start__", "call_model")
 
 
-    def route_model_output(state: State) -> Literal["__end__", "tools"]:
+    def route_model_output(state: State) -> Literal["post_model_process", "tools"]:
         """Determine the next node based on the model's output.
 
         This function checks if the model's last message contains tool calls.
@@ -87,7 +100,7 @@ def rpa_agent():
             state (State): The current state of the conversation.
 
         Returns:
-            str: The name of the next node to call ("__end__" or "tools").
+            str: The name of the next node to call ("post_model_process" or "tools").
         """
         last_message = state.messages[-1]
         if not isinstance(last_message, AIMessage):
@@ -96,7 +109,7 @@ def rpa_agent():
             )
         # If there is no tool call, then we finish
         if not last_message.tool_calls:
-            return "__end__"
+            return "post_model_process"
         # Otherwise we execute the requested actions
         return "tools"
 
@@ -111,6 +124,7 @@ def rpa_agent():
     # Add a normal edge from `tools` to `call_model`
     # This creates a cycle: after using tools, we always return to the model
     builder.add_edge("tools", "call_model")
+    builder.add_edge("post_model_process","__end__")
 
     # Compile the builder into an executable graph
     graph = builder.compile(name="rpa_agent")

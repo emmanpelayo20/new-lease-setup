@@ -4,6 +4,7 @@ These tools are intended as free examples to get started. For production use,
 consider implementing more robust and specialized tools tailored to your needs.
 """
 
+from datetime import datetime, timezone
 from typing import Any, Callable, List, Optional, cast
 from typing_extensions import Annotated
 from dataclasses import asdict
@@ -127,6 +128,42 @@ def create_authority_to_trade_form(PropertyName: str, TenantLegalEntity: str, Sh
     except Exception as e:
         print(f"An error occurred: {e}")
         return None
+
+def update_workflow_status(request_id: str, step_id: str, status: str = "completed") -> str:
+
+    print("UPDATING WORKFLOW STATUS...")
+
+    api_endpoint = f"http://localhost:3002/api/lease-requests/{request_id}/workflow-steps/{step_id}"
+
+    try:
+        update_data = {
+            "status": status,
+            "completedAt": datetime.now(timezone.utc).isoformat(),
+        }
+ 
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
+ 
+        response = requests.patch(api_endpoint, json=update_data, headers=headers)
+
+        if response.status_code == 200:
+            result = response.json()  # Fixed: Added parentheses
+            return result
+          
+        else:
+            # Get error details from response if available
+            try:
+                error_detail = response.json().get('detail', response.text)
+            except:
+                error_detail = response.text
+            return f"Failed to retrieve document. API returned status code: {response.status_code}. Details: {error_detail}"
+ 
+    except requests.exceptions.RequestException as e:
+        return f"Network error retrieving document from vector database: {str(e)}"
+    except Exception as e:
+        return f"Error retrieving document from vector database: {str(e)}"
 
 SUPERVISOR_AGENT_TOOLS: List[Callable[..., Any]] = [assign_to_extraction_agent,assign_to_rpa_agent]
 

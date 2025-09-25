@@ -17,12 +17,12 @@ from langgraph.runtime import Runtime
 
 from react_agent.multi_agent_overhaul.context import Context
 from react_agent.multi_agent_overhaul.state import InputState, State
-from react_agent.multi_agent_overhaul.tools import EXTRACTION_AGENT_TOOLS
+from react_agent.multi_agent_overhaul.tools import EXTRACTION_AGENT_TOOLS, update_workflow_status
 from react_agent.multi_agent_overhaul.utils import load_chat_model
 
 load_dotenv()
 
-# Define the function that pre-process attached pdf documents
+# Pre-process attached documents and upload to vector DB
 def pre_process_documents(state: State):
 
     print("extraction_agent: pre_process_documents")
@@ -77,8 +77,8 @@ def pre_process_documents(state: State):
                 )
             ]
         }
-    except:
-        print("An error occured while trying to pre-process documents.")
+    except Exception as e:
+        print("An error occured while trying to pre-process documents. " + str(e))
 
 async def call_model(
     state: State, runtime: Runtime[Context]
@@ -126,6 +126,27 @@ async def call_model(
     # Return the model's response as a list to be added to existing messages
     return {"messages": [response]}
 
+def post_model_process(state: State):
+    
+    request_id = state.requestid
+    step_id = "1" #step number of document extraction
+
+    print("Updating request Id:" + request_id)
+    #Update Workflow status
+    response = update_workflow_status(request_id=request_id,step_id=step_id,status="completed")
+
+    #Fake update other steps
+    update_workflow_status(request_id=request_id,step_id=2,status="completed")
+    update_workflow_status(request_id=request_id,step_id=3,status="completed")
+    update_workflow_status(request_id=request_id,step_id=4,status="completed")
+    update_workflow_status(request_id=request_id,step_id=5,status="completed")
+    update_workflow_status(request_id=request_id,step_id=6,status="completed")
+    update_workflow_status(request_id=request_id,step_id=7,status="completed")
+    update_workflow_status(request_id=request_id,step_id=8,status="completed")
+    update_workflow_status(request_id=request_id,step_id=9,status="completed")
+    update_workflow_status(request_id=request_id,step_id=10,status="processing")
+
+
 def extraction_agent():
 
     # Define a new graph
@@ -135,13 +156,14 @@ def extraction_agent():
     builder.add_node(pre_process_documents)
     builder.add_node(call_model)
     builder.add_node("tools", ToolNode(EXTRACTION_AGENT_TOOLS))
+    builder.add_node(post_model_process)
 
     # Set the entrypoint as `call_model`
     # This means that this node is the first one called
     builder.add_edge("__start__", "pre_process_documents")
     builder.add_edge("pre_process_documents", "call_model")
-
-    def route_model_output(state: State) -> Literal["__end__", "tools"]:
+    
+    def route_model_output(state: State) -> Literal["post_model_process", "tools"]:
         """Determine the next node based on the model's output.
 
         This function checks if the model's last message contains tool calls.
@@ -150,7 +172,7 @@ def extraction_agent():
             state (State): The current state of the conversation.
 
         Returns:
-            str: The name of the next node to call ("__end__" or "tools").
+            str: The name of the next node to call ("post_model_process" or "tools").
         """
         last_message = state.messages[-1]
         if not isinstance(last_message, AIMessage):
@@ -159,7 +181,7 @@ def extraction_agent():
             )
         # If there is no tool call, then we finish
         if not last_message.tool_calls:
-            return "__end__"
+            return "post_model_process"
         # Otherwise we execute the requested actions
         return "tools"
 
@@ -174,6 +196,7 @@ def extraction_agent():
     # Add a normal edge from `tools` to `call_model`
     # This creates a cycle: after using tools, we always return to the model
     builder.add_edge("tools", "call_model")
+    builder.add_edge("post_model_process", "__end__")
 
     # Compile the builder into an executable graph
     graph = builder.compile(name="extraction_agent")
